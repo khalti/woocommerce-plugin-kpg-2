@@ -1,11 +1,11 @@
 <script src="https://unpkg.com/sweetalert2@7.18.0/dist/sweetalert2.all.js"></script>
 <h3><?php _e( 'Khalti', 'khalti' ); ?></h3>
 <?php 
-if($success == true)
+if(@$success == true)
 {
     echo "<script>Swal('Refunded','".$detail."','success')</script>";
 }
-else if($error == true)
+else if(@$error == true)
 {
     echo "<script>Swal('Error','".$detail."','error')</script>";
 }

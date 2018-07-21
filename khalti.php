@@ -177,7 +177,7 @@ if( !class_exists( 'Khalti' ) ) {
      public function action_links( $links ) {
        if( current_user_can( 'manage_woocommerce' ) ) {
          $plugin_links = array(
-           '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=checkout&section=' . $this->gateway_slug ) . '">' . __( 'Payment Settings', 'woocommerce-payment-gateway-boilerplate' ) . '</a>',
+           '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=checkout&section=khalti') . '">' . __( 'Payment Settings', 'woocommerce-payment-gateway-khalti' ) . '</a>',
          );
          return array_merge( $plugin_links, $links );
        }

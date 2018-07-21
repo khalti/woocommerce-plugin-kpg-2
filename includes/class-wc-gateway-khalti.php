@@ -24,7 +24,7 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
     $this->has_fields         = false;
     $this->credit_fields      = false;
 
-    $this->order_button_text  = __( 'Pay with KHalti', 'khalti' );
+    $this->order_button_text  = __( 'Pay with Khalti', 'khalti' );
 
     $this->method_title       = __( 'Khalti', 'khalti' );
     $this->method_description = __( 'Payments Via Khalti.', 'khalti' );
@@ -107,6 +107,7 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
    * @return void
    */
   protected function init_gateway_sdk() {
+    // $this->admin_options();
   }
 
   /**
@@ -125,7 +126,7 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
     {
         array_push($transaction, array(
             'idx' => $t->idx,
-            'source' => $t->source->name,
+            'source' => $t->user->name,
             'amount' => $t->amount/100,
             'fee' => $t->fee_amount/100,
             'date' => date("Y/m/d H:m:s", strtotime($t->created_on)),
@@ -157,8 +158,8 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
                 //
                 $transaction_detail_array = array(
                     "idx" => $transaction_detail->idx,
-                    "source" => $transaction_detail->source->name,
-                    "mobile" => $transaction_detail->source->mobile,
+                    "source" => $transaction_detail->user->name,
+                    "mobile" => $transaction_detail->user->mobile,
                     "amount" => $transaction_detail->amount/100,
                     "fee_amount" => $transaction_detail->fee_amount/100,
                     "date" => date("Y/m/d H:m:s", strtotime($transaction_detail->created_on)),
