@@ -277,7 +277,7 @@ if( !class_exists( 'Khalti' ) ) {
      */
     public function add_gateway( $methods ) {
       // This checks if the gateway is supported for your country.
-      if( in_array( WC()->countries->get_base_country(), $this->gateway_country_base() ) ) {
+      // if( in_array( WC()->countries->get_base_country(), $this->gateway_country_base() ) ) {
 
         if( class_exists( 'WC_Subscriptions_Order' ) ) {
           $methods[] = 'WC_Gateway_' . str_replace( ' ', '_', $this->name ) . '_Subscription';
@@ -286,7 +286,7 @@ if( !class_exists( 'Khalti' ) ) {
           $methods[] = 'WC_Gateway_' . str_replace( ' ', '_', $this->name );
         }
 
-      }
+      // }
 
       return $methods;
     }
