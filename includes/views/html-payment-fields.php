@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         "publicKey": "<?php echo $this->public_key;?>",
         "productIdentity": "<?php echo $order_id;?>",
         "productName": "product",
-        "productUrl": "url",
+//         "productUrl": "url",
         "eventHandler": {
             onSuccess(payload) {
                 // hit merchant api for initiating verfication
