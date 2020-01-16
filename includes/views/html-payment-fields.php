@@ -32,11 +32,10 @@ if ( ! defined( 'ABSPATH' ) ) {
         "eventHandler": {
             onSuccess(payload) {
                 // hit merchant api for initiating verfication
-                //console.log(payload);
                 var token = payload.token;
                 var amount = payload.amount;
-                var checkoutUrl = "<?php echo wc_get_checkout_url();?>";
-                window.location.href = checkoutUrl + '&token=' + token + '&amount=' + amount + '&order_id=' +<?php echo $order_id;?>;
+                var checkoutUrl = "<?php echo add_query_arg(['order_id' => $order_id], wc_get_checkout_url());?>";
+                window.location.href = checkoutUrl + '&token=' + token + '&amount=' + amount;
             },
             onError(error) {
                 console.log(error);
