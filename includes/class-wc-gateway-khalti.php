@@ -364,7 +364,7 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 	 */
 	public function payment_fields() {
 		$description = $this->get_description();
-
+		
 		if ( $this->sandbox == 'yes' ) {
 			$description .= ' ' . __( 'TEST MODE ENABLED.' );
 		}
@@ -465,10 +465,12 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 
 		$this->final_url = $this->get_return_url( $order );
 
+		$redirectUrl =  add_query_arg(['khalti' => 'pay', 'order_id' => $order_id], wc_get_checkout_url());
+
 		// Return thank you page redirect.
 		return array(
 			'result'   => 'success',
-			'redirect' => '?khalti=pay&order_id=' . $order_id
+			'redirect' => $redirectUrl
 		);
 	}
 
@@ -518,7 +520,7 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 				$this->log->add( $this->id, 'Cart emptied.' );
 			}
 
-			$redirect_url = get_home_url() . '/index.php/checkout/order-received/' . $order_id . '/?key=' . $order->order_key;
+			$redirect_url = $order->get_checkout_order_received_url();
 			//redirect to success page
 			wp_redirect( $redirect_url );
 			exit();
@@ -526,7 +528,7 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 			// Add order note.
 			$order->add_order_note( __( 'Gateway Name payment declined', 'Khalti' ) );
 			$order->update_status( 'failed' );
-			$redirect_url = get_home_url() . '/index.php/checkout/order-received/' . $order_id . '/?key=' . $order->order_key;
+			$redirect_url = $order->get_checkout_order_received_url();
 
 			wp_redirect( $redirect_url );
 			exit();
@@ -633,5 +635,3 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 	}
 
 } // end class.
-
-?>
