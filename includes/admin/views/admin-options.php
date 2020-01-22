@@ -69,7 +69,7 @@
 }
 </style>
 <h3><?php _e( 'Khalti', 'khalti' ); ?></h3>
-<div class="gateway-banner updated">
+<div class="gateway-banner updated inline">
   <img src="<?php echo Khalti()->plugin_url() . '/assets/images/logo.png'; ?>" style="width:200px"/>
   <p class="main"><strong><?php _e( 'Getting started', 'khalti' ); ?></strong></p>
   <p><?php _e( 'Khalti is the new generation Payment Gateway, Digital Wallet and API provider for various services. We provide you with true Payment Gateway, where you can accepts payments from<br><b>For Queries, feel free to call us at 9801165568 or email merchantapi@khalti.com</b>', 'khalti' ); ?></p>

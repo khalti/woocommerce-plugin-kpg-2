@@ -186,10 +186,12 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 		$response    = wp_remote_request( $url, $headers );
 		$status_code = wp_remote_retrieve_response_code( $response );
 
-		return array(
-			"Response"   => $response['body'],
-			"StatusCode" => $status_code
-		);
+		if( !is_wp_error( $response )){
+			return [
+				"Response"   => $response['body'],
+				"StatusCode" => $status_code
+			];
+		}
 	}
 
 	public function getTransactionDetail( $idx ) {
@@ -207,10 +209,12 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 		$response    = wp_remote_request( $url, $headers );
 		$status_code = wp_remote_retrieve_response_code( $response );
 
-		return array(
-			"Response"   => $response['body'],
-			"StatusCode" => $status_code
-		);
+		if( !is_wp_error($response)){
+			return [
+				"Response"   => $response['body'],
+				"StatusCode" => $status_code
+			];
+		}
 	}
 
 	public function khaltiRefund( $idx ) {
