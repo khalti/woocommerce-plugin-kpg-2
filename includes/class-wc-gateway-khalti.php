@@ -271,7 +271,7 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 		}
 
 		if ( ! is_ssl() && 'yes' != $this->sandbox ) {
-			return false;
+			// return false;
 		}
 
 		if ( ! $this->public_key || ! $this->private_key ) {
@@ -387,10 +387,11 @@ class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway {
 		$basetot = WC()->cart->total;
 		$tot     = $basetot * 100;
 		// This includes your custom payment fields.
-		echo '<button id="payment-button" style="background-color: #773292;color: #fff;border: none;padding: 5px 10px;border-radius: 2px;">Pay with Khalti</button>';
 		if ( @$_GET['khalti'] == 'pay' && @$_GET['order_id'] != null ) {
 			$order_id = @$_GET['order_id'];
 			include_once( Khalti()->plugin_path() . '/includes/views/html-payment-fields.php' );
+		} else {
+			echo '<button id="payment-button" style="background-color: #773292;color: #fff;border: none;padding: 5px 10px;border-radius: 2px;">Pay with Khalti</button>';
 		}
 
 		if ( @$_GET['token'] != null && @$_GET['amount'] != null && @$_GET['order_id'] != null ) {
