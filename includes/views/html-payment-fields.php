@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 </script>
 <script src="https://khalti.com/static/khalti-checkout.js"></script>
 <!-- Place this where you need payment button -->
-<button id="payment-button" style="background-color: #773292;color: #fff;border: none;padding: 5px 10px;border-radius: 2px;">Pay with Khalti</button>
+<!-- <button id="payment-button" style="background-color: #773292;color: #fff;border: none;padding: 5px 10px;border-radius: 2px;">Pay with Khalti</button> -->
 <!-- Place this where you need payment button -->
 <!-- Paste this code anywhere in you body tag -->
 <script>
