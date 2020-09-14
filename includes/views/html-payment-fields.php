@@ -1,6 +1,6 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+if (!defined('ABSPATH')) {
+    exit;
 } // Exit if accessed directly.
 
 // TODO: Insert your custom payment fields here.
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         }
     })
 </script>
-<script src="https://khalti.com/static/khalti-checkout.js"></script>
+<script src="https://unpkg.com/khalti-checkout-web@latest/dist/khalti-checkout.iffe.js"></script>
 <!-- Place this where you need payment button -->
 <!-- <button id="payment-button" style="background-color: #773292;color: #fff;border: none;padding: 5px 10px;border-radius: 2px;">Pay with Khalti</button> -->
 <!-- Place this where you need payment button -->
@@ -25,16 +25,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 <script>
     var config = {
         // replace the publicKey with yours
-        "publicKey": "<?php echo $this->public_key;?>",
-        "productIdentity": "<?php echo $order_id;?>",
+        "publicKey": "<?php echo $this->public_key; ?>",
+        "productIdentity": "<?php echo $order_id; ?>",
         "productName": "product",
-	    "productUrl": "<?php echo get_permalink($order_id);?>",
+	    "productUrl": "<?php echo get_permalink($order_id); ?>",
         "eventHandler": {
             onSuccess(payload) {
                 // hit merchant api for initiating verfication
                 var token = payload.token;
                 var amount = payload.amount;
-                var checkoutUrl = "<?php echo add_query_arg(['order_id' => $order_id], wc_get_checkout_url());?>";
+                var checkoutUrl = "<?php echo add_query_arg(['order_id' => $order_id], wc_get_checkout_url()); ?>";
                 window.location.href = checkoutUrl + '&token=' + token + '&amount=' + amount;
             },
             onError(error) {
@@ -49,6 +49,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     var checkout = new KhaltiCheckout(config);
     var btn = document.getElementById("payment-button");
     //btn.onclick = function () {
-    checkout.show({amount: <?php echo $tot;?>});
+        setTimeout(function(){
+            checkout.show({amount: <?php echo $tot; ?>});
+        }, 500);
     //}
 </script>
