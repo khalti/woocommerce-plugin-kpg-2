@@ -51,6 +51,6 @@ if (!defined('ABSPATH')) {
     //btn.onclick = function () {
         setTimeout(function(){
             checkout.show({amount: <?php echo $tot; ?>});
-        }, 500);
+        }, 1000);
     //}
 </script>
