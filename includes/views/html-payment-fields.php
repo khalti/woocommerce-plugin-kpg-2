@@ -29,6 +29,13 @@ if (!defined('ABSPATH')) {
         "productIdentity": "<?php echo $order_id; ?>",
         "productName": "product",
 	    "productUrl": "<?php echo get_permalink($order_id); ?>",
+        "paymentPreference": [
+                "KHALTI",
+                "EBANKING",
+                "MOBILE_BANKING",
+                "CONNECT_IPS",
+                "SCT",
+            ],
         "eventHandler": {
             onSuccess(payload) {
                 // hit merchant api for initiating verfication
