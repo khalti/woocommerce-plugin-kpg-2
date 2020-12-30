@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
         }
     })
 </script>
-<script src="https://unpkg.com/khalti-checkout-web@latest/dist/khalti-checkout.iffe.js"></script>
+<script src="https://khalti.s3.ap-south-1.amazonaws.com/KPG/dist/2020.12.17.0.0.0/khalti-checkout.iffe.js"></script>
 <!-- Place this where you need payment button -->
 <!-- <button id="payment-button" style="background-color: #773292;color: #fff;border: none;padding: 5px 10px;border-radius: 2px;">Pay with Khalti</button> -->
 <!-- Place this where you need payment button -->
