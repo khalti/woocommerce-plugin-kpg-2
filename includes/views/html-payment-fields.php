@@ -8,12 +8,8 @@ if (!defined('ABSPATH')) {
 
 <script>
     jQuery(document).ready(function ($) {
-        jQuery('#payment_method_khalti').on('click', function () {
-            //jQuery('#place_order').hide();
-        });
         if (!document.getElementById('payment_method_khalti').checked) {
             jQuery('#place_order').show();
-            alert('show');
         }
     })
 </script>
