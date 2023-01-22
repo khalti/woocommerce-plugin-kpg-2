@@ -1,4 +1,4 @@
-=== Integrate Khalti in WooCommerce ===
+## Integrate Khalti in WooCommerce
 Contributors: act360
 Tags: woocommerce, khalti, payment gateway
 Requires at least: 5.0
@@ -9,7 +9,7 @@ License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
 Adds Khalti payment gateway option in the WooCommerce plugin.
 
-== Description ==
+## Description
 
 This plugin adds Khalti payment gateway to WooCommerce.
 
