@@ -1,668 +1,238 @@
 <?php
-if (!defined('ABSPATH')) {
-    exit;
-} // Exit if accessed directly.
 
 /**
- * WooCommerce Khalti.
+ * Payment gateway - Khalti
  *
- * @class   WC_Gateway_Khalti_Boilerplate
- * @extends WC_Payment_Gateway
- * @version 1.0.0
- * @package Khalti Payment Gateway/Includes
- * @author  Bibek M Acharya
+ * Provides an Khalti Payment Gateway.
+ *
+ * @package WooCommerce_Khalti\Classes\Payment
  */
-class WC_Gateway_Khalti_Payment_Gateway extends WC_Payment_Gateway
+
+defined('ABSPATH') || exit;
+
+/**
+ * WC_Gateway_Khalti Class.
+ */
+class WC_Gateway_Khalti extends WC_Payment_Gateway
 {
+    const LIVE_URL = 'https://khalti.com/api/v2/epayment';
+    const TEST_URL = 'https://a.khalti.com/api/v2/epayment';
+
+    /**
+     * Whether or not logging is enabled.
+     *
+     * @var boolean
+     */
+    public static $log_enabled = false;
+
+    /**
+     * A log object returned by wc_get_logger().
+     *
+     * @var boolean
+     */
+    public static $log = false;
 
     /**
      * Constructor for the gateway.
-     *
-     * @access public
-     * @return void
      */
     public function __construct()
     {
-        $this->id            = 'khalti';
-        $this->icon          = apply_filters('khalti_icon', plugins_url('/assets/images/payment.jpg', dirname(__FILE__)));
-        $this->has_fields    = false;
-        $this->credit_fields = false;
+        $this->id = 'khalti';
 
-        $this->order_button_text = __('Pay with Khalti', 'khalti');
-
-        $this->method_title       = __('Khalti', 'khalti');
-        $this->method_description = __('Payments Via Khalti.', 'khalti');
-
-        $this->notify_url = WC()->api_request_url('Khalti');
-
-        $this->api_endpoint = '';
-
-        $this->supports = array(
-            'subscriptions',
-            'products',
-            'subscription_cancellation',
-            'subscription_reactivation',
-            'subscription_suspension',
-            'subscription_amount_changes',
-            'subscription_payment_method_change',
-            'subscription_date_changes',
-            'default_credit_card_form',
-            'refunds',
-            'pre-orders',
+        add_action(
+            'admin_enqueue_scripts',
+            array($this, 'admin_scripts')
+        );
+        add_action(
+            'woocommerce_update_options_payment_gateways_' . $this->id,
+            array($this, 'process_admin_options')
         );
 
-        $this->view_transaction_url = '';
-
-        // Load the form fields.
-        $this->init_form_fields();
+        $this->icon = apply_filters(
+            'woocommerce_khalti_icon',
+            plugins_url('assets/images/khalti.png', WC_KHALTI_PLUGIN_FILE)
+        );
+        $this->has_fields = false;
+        $this->order_button_text = __('Proceed to Khalti', 'woocommerce-khalti');
+        $this->method_title = __('Khalti', 'woocommerce-khalti');
+        $this->method_description = __(
+            'Take payments via Khalti - sends customers to Khalti portal to enter their payment information.',
+            'woocommerce-khalti'
+        );
 
         // Load the settings.
+        $this->init_form_fields();
         $this->init_settings();
 
-        // Get setting values.
-        $this->enabled = $this->get_option('enabled');
+        // Define user set variables.
+        $this->title = $this->get_option('title');
+        $this->description = $this->get_option('description');
+        $this->testmode = 'yes' === $this->get_option('testmode', 'no');
+        $this->debug = 'yes' === $this->get_option('debug', 'no');
+        $this->merchant_secret = $this->get_option('merchant_secret');
 
-        $this->title        = $this->get_option('title');
-        $this->description  = $this->get_option('description');
-        $this->instructions = $this->get_option('instructions');
+        // Optional params
+        $this->send_customer_info = 'yes' === $this->get_option('send_customer_info', 'no');
+        $this->send_amount_breakdown = 'yes' === $this->get_option('send_amount_breakdown', 'no');
 
-        $this->sandbox     = $this->get_option('sandbox');
-        $this->private_key = $this->sandbox == 'no' ? $this->get_option('live_secret_key') : $this->get_option('test_secret_key');
-        $this->public_key  = $this->sandbox == 'no' ? $this->get_option('live_public_key') : $this->get_option('test_public_key');
+        //API endpoints
+        $this->payment_request_api_endpoint = self::LIVE_URL . '/initiate';
+        $this->payment_lookup_api_endpoint = self::LIVE_URL . '/lookup';
 
-        $this->debug = $this->get_option('debug');
+        // Enable logging for events.
+        self::$log_enabled = $this->debug;
 
-        $this->final_url = null;
-
-        // Logs.
-        if ($this->debug == 'yes') {
-            if (class_exists('WC_Logger')) {
-                $this->log = new WC_Logger();
-            } else {
-                $this->log = $woocommerce->logger();
-            }
+        if ($this->testmode) {
+            $this->description .= ' ' . __('SANDBOX ENABLED. You can use testing accounts only.', 'woocommerce-khalti');
+            $this->description  = trim($this->description);
+            $this->merchant_secret  = $this->get_option('sandbox_merchant_secret');
+            $this->payment_request_api_endpoint = self::TEST_URL . '/initiate';
+            $this->payment_lookup_api_endpoint = self::TEST_URL . '/lookup';
         }
 
-        $this->init_gateway_sdk();
+        if (!$this->is_valid_for_use()) {
+            $this->enabled = 'no';
+        } elseif ($this->merchant_secret) {
+            include_once dirname(__FILE__) . '/gateways/class-wc-gateway-khalti-ipn-handler.php';
 
-        // Hooks.
-        if (is_admin()) {
-            add_action('wp_enqueue_scripts', array($this, 'payment_scripts'));
-            add_action('admin_notices', array($this, 'checks'));
-
-            add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
-            add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
-
-            add_action("woocommerce_cart_contents", "get_cart");
+            new WC_Gateway_KHALTI_IPN_Handler($this);
         }
-
-        add_action('woocommerce_thankyou_' . $this->id, array($this, 'thankyou_page'));
-
-        // Customer Emails.
-        add_action('woocommerce_email_before_order_table', array($this, 'email_instructions'), 10, 3);
-
     }
 
     /**
-     * Init Payment Gateway SDK.
+     * Return whether or not this gateway still requires setup to function.
      *
-     * @access protected
-     * @return void
+     * When this gateway is toggled on via AJAX, if this returns true a
+     * redirect will occur to the settings page instead.
+     *
+     * @return bool
      */
-    protected function init_gateway_sdk()
+    public function needs_setup()
     {
-        // $this->admin_options();
+        return empty($this->merchant_secret);
     }
 
     /**
-     * Admin Panel Options
-     * - Options for bits like 'title' and availability on a country-by-country basis
+     * Logging method.
      *
-     * @access public
-     * @return void
+     * @param string $message Log message.
+     * @param string $level Optional, defaults to info, valid levels:
+     *                      emergency|alert|critical|error|warning|notice|info|debug.
+     */
+    public static function log($message, $level = 'info')
+    {
+        if (self::$log_enabled) {
+            if (empty(self::$log)) {
+                self::$log = wc_get_logger();
+            }
+
+            self::$log->log($level, $message, array('source' => 'khalti'));
+        }
+    }
+
+    /**
+     * Processes and saves options.
+     * If there is an error thrown, will continue to save and validate fields, but will leave the erroring field out.
+     *
+     * @return bool was anything saved?
+     */
+    public function process_admin_options()
+    {
+        $saved = parent::process_admin_options();
+
+        // Maybe clear logs.
+        if ('yes' !== $this->get_option('debug', 'no')) {
+            if (empty(self::$log)) {
+                self::$log = wc_get_logger();
+            }
+
+            self::$log->clear('Khalti');
+        }
+
+        return $saved;
+    }
+
+    /**
+     * Check if this gateway is enabled and available in the user's country.
+     *
+     * @return bool
+     */
+    public function is_valid_for_use()
+    {
+        return in_array(
+            get_woocommerce_currency(),
+            apply_filters('woocommerce_khalti_supported_currencies', array('NPR')),
+            true
+        );
+    }
+
+    /**
+     * Admin Panel Options.
+     * - Options for bits like 'title' and availability on a country-by-country basis.
+     *
      */
     public function admin_options()
     {
-        $transaction_id = @$_GET['transaction_id'];
-        $transaction    = array();
-        $getTransaction = $this->getTransaction()['Response'];
-        $getTransaction = json_decode($getTransaction);
-
-        if (!empty($getTransaction->records)) {
-            foreach ($getTransaction->records as $t) {
-                array_push($transaction, array(
-                    'idx'      => $t->idx,
-                    'source'   => $t->user->name,
-                    'amount'   => $t->amount / 100,
-                    'fee'      => $t->fee_amount / 100,
-                    'date'     => date("Y/m/d H:m:s", strtotime($t->created_on)),
-                    'type'     => $t->type->name,
-                    'state'    => $t->refunded == true ? "Refunded" : $t->state->name,
-                    'refunded' => $t->refunded,
-                ));
-            }
-        }
-
-        if ($transaction_id) {
-            if (@$_GET['refund'] == 'true') {
-                $refund      = $this->khaltiRefund($transaction_id);
-                $status_code = $refund['StatusCode'];
-                $detail      = json_decode($refund['Response']);
-                $detail      = $detail->detail;
-                if ($status_code == 200) {
-                    $success = true;
-                    $message = $detail;
-                } else {
-                    $error   = true;
-                    $message = $detail;
-                }
-            }
-            $transaction_detail = json_decode($this->getTransactionDetail($transaction_id)['Response']);
-            //
-            $transaction_detail_array = array(
-                "idx"        => $transaction_detail->idx,
-                "source"     => $transaction_detail->user->name,
-                "mobile"     => $transaction_detail->user->mobile,
-                "amount"     => $transaction_detail->amount / 100,
-                "fee_amount" => $transaction_detail->fee_amount / 100,
-                "date"       => date("Y/m/d H:m:s", strtotime($transaction_detail->created_on)),
-                "state"      => $transaction_detail->refunded == true ? "Refunded" : $transaction_detail->state->name,
-                "refunded"   => $transaction_detail->refunded,
-            );
-            include_once Khalti()->plugin_path() . '/includes/admin/views/transaction-detail.php';
+        if ($this->is_valid_for_use()) {
+            parent::admin_options();
         } else {
-            include_once Khalti()->plugin_path() . '/includes/admin/views/admin-options.php';
-        }
-    }
+            $error_notice = '<div class="inline error"><p>';
+            $error_notice .= '<strong>' . esc_html_e('Gateway Disabled', 'woocommerce-khalti') . ':</strong>';
+            $error_notice .= esc_html_e('Khalti does not support your store currency.', 'woocommerce-khalti');
+            $error_notice = '</p></div>';
 
-    public function getTransaction()
-    {
-        $url = "https://khalti.com/api/merchant-transaction/";
-
-        $headers = array(
-            'headers' => array(
-                'Authorization' => 'Key ' . $this->private_key,
-            ),
-        );
-
-        # Make the call using API.
-        # Modified to suit with WordPress coding standard
-        # @modified by Deepen
-        $response    = wp_remote_request($url, $headers);
-        $status_code = wp_remote_retrieve_response_code($response);
-
-        if (!is_wp_error($response)) {
-            return [
-                "Response"   => $response['body'],
-                "StatusCode" => $status_code,
-            ];
-        }
-    }
-
-    public function getTransactionDetail($idx)
-    {
-        $url = "https://khalti.com/api/merchant-transaction/{$idx}/";
-
-        $headers = array(
-            'headers' => array(
-                'Authorization' => 'Key ' . $this->private_key,
-            ),
-        );
-
-        # Make the call using API.
-        # Modified to suit with WordPress coding standard
-        # @modified by Deepen
-        $response    = wp_remote_request($url, $headers);
-        $status_code = wp_remote_retrieve_response_code($response);
-
-        if (!is_wp_error($response)) {
-            return [
-                "Response"   => $response['body'],
-                "StatusCode" => $status_code,
-            ];
-        }
-    }
-
-    public function khaltiRefund($idx)
-    {
-        $url = "https://khalti.com/api/merchant-transaction/{$idx}/refund/";
-
-        $headers = array(
-            'headers' => array(
-                'Authorization' => 'Key ' . $this->private_key,
-            ),
-        );
-
-        # Make the call using API.
-        # Modified to suit with WordPress coding standard
-        # @modified by Deepen
-        $response    = wp_remote_request($url, $headers);
-        $status_code = wp_remote_retrieve_response_code($response);
-
-        return array(
-            "Response"   => $response['body'],
-            "StatusCode" => $status_code,
-        );
-    }
-
-    /**
-     * Check if SSL is enabled and notify the user.
-     *
-     * @access public
-     */
-    public function checks()
-    {
-        if ($this->enabled == 'no') {
-            return;
-        }
-
-        // PHP Version.
-        if (version_compare(phpversion(), '5.3', '<')) {
-            echo '<div class="error"><p>' . sprintf(__('Khalti Error: Khalti requires PHP 5.3 and above. You are using version %s.', 'khalti'), phpversion()) . '</p></div>';
-        } // Check required fields.
-        else if (!$this->public_key || !$this->private_key) {
-            echo '<div class="error"><p>' . __('Khalti Error: Please enter your public and private keys', 'khalti') . '</p></div>';
-        } // Show message if enabled and FORCE SSL is disabled and WordPress HTTPS plugin is not detected.
-        else if ('no' == get_option('woocommerce_force_ssl_checkout') && !class_exists('WordPressHTTPS')) {
-            if (!is_ssl()) {
-                echo '<div class="error"><p>' . sprintf(__('Khalti is enabled, but the <a href="%s">force SSL option</a> is disabled; your checkout may not be secure! Please enable SSL and ensure your server has a valid SSL certificate - Gateway Name will only work in sandbox mode.', 'khalti'), admin_url('admin.php?page=wc-settings&tab=checkout')) . '</p></div>';
-            }
+            echo $error_notice;
         }
     }
 
     /**
-     * Check if this gateway is enabled.
-     *
-     * @access public
-     */
-    public function is_available()
-    {
-        if ($this->enabled == 'no') {
-            return false;
-        }
-
-        if (get_woocommerce_currency() !== 'NPR') {
-            return false;
-        }
-
-        if (!is_ssl() && 'yes' != $this->sandbox) {
-            return false;
-        }
-
-        if (!$this->public_key || !$this->private_key) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Initialise Khalti Settings Form Fields
-     *
-     * The standard gateway options have already been applied.
-     * Change the fields to match what the payment gateway your building requires.
-     *
-     * @access public
+     * Initialise Gateway Settings Form Fields.
      */
     public function init_form_fields()
     {
-        $this->form_fields = array(
-            'enabled'         => array(
-                'title'       => __('Enable/Disable', 'Khalti'),
-                'label'       => __('Enable Khalti', 'Khalti'),
-                'type'        => 'checkbox',
-                'description' => '',
-                'default'     => 'no',
-            ),
-            'title'           => array(
-                'title'       => __('Title', 'Khalti'),
-                'type'        => 'text',
-                'description' => __('This controls the title which the user sees during checkout.', 'khalti'),
-                'default'     => __('Khalti', 'khalti'),
-                'desc_tip'    => true,
-            ),
-            'description'     => array(
-                'title'       => __('Description', 'Khalti'),
-                'type'        => 'text',
-                'description' => __('This controls the description which the user sees during checkout.', 'Khalti'),
-                'default'     => 'Pay with Khalti',
-                'desc_tip'    => true,
-            ),
-            'sandbox'         => array(
-                'title'       => __('Khalti Mode', 'Khalti'),
-                'label'       => __('Enable Test Mode', 'Khalti'),
-                'type'        => 'checkbox',
-                'description' => __('Place the Khalti Payment Gateway in test mode before doing live transactions', 'Khalti'),
-                'default'     => 'yes',
-            ),
-            'test_secret_key' => array(
-                'title'       => __('Test Secret Key', 'Khalti'),
-                'type'        => 'text',
-                'description' => __('Get your API keys from your Khalti Merchant Panel.', 'Khalti'),
-                'default'     => '',
-                'desc_tip'    => true,
-            ),
-            'test_public_key' => array(
-                'title'       => __('Test Public Key', 'Khalti'),
-                'type'        => 'text',
-                'description' => __('Get your API keys from your Khalti Merchant Panel.', 'Khalti'),
-                'default'     => '',
-                'desc_tip'    => true,
-            ),
-            'live_secret_key' => array(
-                'title'       => __('Live Secret Key', 'Khalti'),
-                'type'        => 'text',
-                'description' => __('Get your API keys from your Khalti Merchant Panel.', 'Khalti'),
-                'default'     => '',
-                'desc_tip'    => true,
-            ),
-            'live_public_key' => array(
-                'title'       => __('Live Public Key', 'Khalti'),
-                'type'        => 'text',
-                'description' => __('Get your API keys from your Gateway Name account.', 'Khalti'),
-                'default'     => '',
-                'desc_tip'    => true,
-            ),
-        );
-    }
-
-    /**
-     * Output for the order received page.
-     *
-     * @access public
-     * @return void
-     */
-    public function receipt_page($order)
-    {
-        echo '<p>' . __('Thank you - your order is now pending payment.', 'Khalti') . '</p>';
-
-    }
-
-    /**
-     * Payment form on checkout page.
-     *
-     * @access public
-     */
-    public function payment_fields()
-    {
-        $description = $this->get_description();
-
-        if ($this->sandbox == 'yes') {
-            $description .= ' ' . __('TEST MODE ENABLED.');
-        }
-
-        if (!empty($description)) {
-            echo wpautop(wptexturize(trim($description)));
-        }
-
-        // If credit fields are enabled, then the credit card fields are provided automatically.
-        if ($this->credit_fields) {
-            $this->credit_card_form(array(
-                'fields_have_names' => false,
-            ));
-        }
-
-        $basetot = WC()->cart->total;
-        $tot     = $basetot * 100;
-        // This includes your custom payment fields.
-        if (@$_GET['khalti'] == 'pay' && @$_GET['order_id'] != null) {
-            $order_id = @$_GET['order_id'];
-            include_once Khalti()->plugin_path() . '/includes/views/html-payment-fields.php';
-        }
-
-        if (@$_GET['token'] != null && @$_GET['amount'] != null && @$_GET['order_id'] != null) {
-            $order_id = (int) strip_tags($_GET['order_id']);
-            $token    = strip_tags($_GET['token']);
-            $amount   = (int) strip_tags($_GET['amount']);
-            $this->complete_payment($order_id, $amount, $token);
-        }
-    }
-
-    /**
-     * Outputs scripts used for the payment gateway.
-     *
-     * @access public
-     */
-    public function payment_scripts()
-    {
-        if (!is_checkout() || !$this->is_available()) {
-            return;
-        }
-
-        $suffix = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
-        wp_register_script('khalti', 'https://khalti.com/static/khalti-checkout.js', '', '3.0', false);
-
-        wp_enqueue_script('khalti');
-    }
-
-    /**
-     * Output for the order received page.
-     *
-     * @access public
-     */
-    public function thankyou_page($order_id)
-    {
-        if (!empty($this->instructions)) {
-            echo wpautop(wptexturize(wp_kses_post($this->instructions)));
-        }
-
-        $this->extra_details($order_id);
-    }
-
-    /**
-     * Add content to the WC emails.
-     *
-     * @access public
-     *
-     * @param  WC_Order $order
-     * @param  bool $sent_to_admin
-     * @param  bool $plain_text
-     */
-    public function email_instructions($order, $sent_to_admin, $plain_text = false)
-    {
-        if (!$sent_to_admin && $this->id === $order->payment_method && $order->has_status('on-hold')) {
-            if (!empty($this->instructions)) {
-                echo wpautop(wptexturize($this->instructions)) . PHP_EOL;
-            }
-
-            $this->extra_details($order->id);
-        }
-    }
-
-    /**
-     * Gets the extra details you set here to be
-     * displayed on the 'Thank you' page.
-     *
-     * @access private
-     */
-    private function extra_details($order_id = '')
-    {
-        echo '<h2>' . __('Extra Details', 'Khalti') . '</h2>' . PHP_EOL;
-
-    }
-
-    public function process_payment($order_id)
-    {
-        $order   = new WC_Order($order_id);
-        $basetot = WC()->cart->total;
-        $tot     = $basetot * 100;
-        // This includes your custom payment fields.
-        include_once Khalti()->plugin_path() . '/includes/views/html-payment-fields.php';
-
-        $this->final_url = $this->get_return_url($order);
-
-        $redirectUrl = add_query_arg(['khalti' => 'pay', 'order_id' => $order_id], wc_get_checkout_url());
-
-        // Return thank you page redirect.
-        return array(
-            'result'   => 'success',
-            'redirect' => $redirectUrl,
-        );
+        $this->form_fields = include 'gateways/settings-khalti.php';
     }
 
     /**
      * Process the payment and return the result.
-     * @access public
      *
-     * @param  int $order_id
-     *
+     * @param  int $order_id Order ID.
      * @return array
      */
-    public function complete_payment($order_id, $amount, $token)
+    public function process_payment($order_id)
     {
-        $validate    = $this->khalti_validate($token, $amount);
-        $status_code = $validate['status_code'];
-        $idx         = $validate['idx'];
-        $amount      = $amount / 100;
-        $orderTotal  = WC()->cart->total;
+        include_once dirname(__FILE__) . '/gateways/class-wc-gateway-khalti-request.php';
 
-        $order = new WC_Order($order_id);
+        $order = wc_get_order($order_id);
+        $khalti_request = new WC_Gateway_Khalti_Request($this);
 
-        if ($orderTotal == $amount && $idx != null && $status_code == 200) {
-            // Payment complete.
-            $order->payment_complete();
-
-            // Store the transaction ID for WC 2.2 or later.
-            add_post_meta($order->id, '_transaction_id', $idx, true);
-
-            // Add order note.
-            $order->add_order_note(sprintf(__('Gateway Name payment approved (ID: %s)', 'Khalti'), $idx));
-
-            if ($this->debug == 'yes') {
-                $this->log->add($this->id, 'Gateway Name payment approved (ID: ' . $idx . ')');
-            }
-
-            // Reduce stock levels.
-            // Changed to support latest WooCommerce
-            wc_reduce_stock_levels($order_id);
-
-            if ($this->debug == 'yes') {
-                $this->log->add($this->id, 'Stocked reduced.');
-            }
-
-            // Remove items from cart.
-            WC()->cart->empty_cart();
-
-            if ($this->debug == 'yes') {
-                $this->log->add($this->id, 'Cart emptied.');
-            }
-
-            $redirect_url = $order->get_checkout_order_received_url();
-            //redirect to success page
-            wp_redirect($redirect_url);
-            exit();
-        } else {
-            // Add order note.
-            $order->add_order_note(__('Gateway Name payment declined', 'Khalti'));
-            $order->update_status('failed');
-            $redirect_url = $order->get_checkout_order_received_url();
-
-            wp_redirect($redirect_url);
-            exit();
-        }
-    }
-
-    public function khalti_validate($token, $amount)
-    {
-        $url = "https://khalti.com/api/v2/payment/verify/";
-
-        # Make the call using API.
-        $headers = array(
-            'headers' => array(
-                'Authorization' => 'Key ' . $this->private_key,
-            ),
-            'method'  => 'POST',
-            'body'    => array(
-                'token'  => $token,
-                'amount' => $amount,
-            ),
+        return array(
+            'result' => 'success',
+            'redirect' => $khalti_request->get_request_url($order),
         );
-
-        $response    = wp_remote_request($url, $headers);
-        $status_code = wp_remote_retrieve_response_code($response);
-
-        // Response
-		$response = json_decode($response['body']);
-
-        $idx      = @$response->idx;
-        $data     = array(
-            "idx"         => $idx,
-            "status_code" => $status_code,
-            "response"    => $response,
-        );
-
-        return $data;
-    }
-
-    public function khalti_transaction($idx)
-    {
-        //is this even being called ?
-        $url = "https://khalti.com/api/merchant-transaction/$idx/";
-
-        # Make the call using API.
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        //curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-        //curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-
-        //        $headers = ['Authorization: Key '.$this->private_key];
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-        // Response
-        $response    = curl_exec($ch);
-        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        return $response;
     }
 
     /**
-     * Process refunds.
-     * WooCommerce 2.2 or later
+     * Load admin scripts.
      *
-     * @access public
-     *
-     * @param  int $order_id
-     * @param  float $amount
-     * @param  string $reason
-     *
-     * @return bool|WP_Error
      */
-    public function process_refund($order_id, $amount = null, $reason = '')
+    public function admin_scripts()
     {
+        $screen    = get_current_screen();
+        $screen_id = $screen ? $screen->id : '';
 
-        $payment_id = get_post_meta($order_id, '_transaction_id', true);
-        $response   = '';
-
-        if (is_wp_error($response)) {
-            return $response;
+        if ('woocommerce_page_wc-settings' !== $screen_id) {
+            return;
         }
 
-        if ('APPROVED' == $refund['status']) {
+        $suffix = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
 
-            // Mark order as refunded
-            $order->update_status('refunded', __('Payment refunded via Gateway Name.', 'Khalti'));
-
-            $order->add_order_note(sprintf(__('Refunded %s - Refund ID: %s', 'Khalti'), $refunded_cost, $refund_transaction_id));
-
-            if ($this->debug == 'yes') {
-                $this->log->add($this->id, 'Gateway Name order #' . $order_id . ' refunded successfully!');
-            }
-
-            return true;
-        } else {
-
-            $order->add_order_note(__('Error in refunding the order.', 'Khalti'));
-
-            if ($this->debug == 'yes') {
-                $this->log->add($this->id, 'Error in refunding the order #' . $order_id . '. Gateway Name response: ' . print_r($response, true));
-            }
-
-            return true;
-        }
-
+        wp_enqueue_script(
+            'woocommerce_khalti_admin',
+            plugins_url('/assets/js/khalti-admin' . $suffix . '.js', WC_KHALTI_PLUGIN_FILE),
+            array(),
+            WC_VERSION,
+            true
+        );
     }
-
-} // end class.
+}
